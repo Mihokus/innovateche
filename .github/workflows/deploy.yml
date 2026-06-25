@@ -66,11 +66,11 @@ jobs:
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 035167451253.dkr.ecr.us-east-1.amazonaws.com
-            docker pull 035167451253.dkr.ecr.us-east-1.amazonaws.com/innovatech-frontend:latest
-            docker stop innovatech-frontend || true
-            docker rm innovatech-frontend || true
-            docker run -d --name innovatech-frontend -p 80:80 -e BACKEND_HOST=10.0.2.232 035167451253.dkr.ecr.us-east-1.amazonaws.com/innovatech-frontend:latest
+            aws ecr get-login-password --region us-east-1 | sudo docker login --username AWS --password-stdin 035167451253.dkr.ecr.us-east-1.amazonaws.com
+            sudo docker pull 035167451253.dkr.ecr.us-east-1.amazonaws.com/innovatech-frontend:latest
+            sudo docker stop innovatech-frontend || true
+            sudo docker rm innovatech-frontend || true
+            sudo docker run -d --name innovatech-frontend -p 80:80 -e BACKEND_HOST=10.0.2.232 035167451253.dkr.ecr.us-east-1.amazonaws.com/innovatech-frontend:latest
 
   deploy-backend:
     name: Deploy Backend en EC2
@@ -85,4 +85,4 @@ jobs:
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            ssh -o StrictHostKeyChecking=no -i /home/ec2-user/innovatech-key.pem ec2-user@10.0.2.232 "aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 035167451253.dkr.ecr.us-east-1.amazonaws.com && cd /home/ec2-user && docker-compose pull && docker-compose up -d"
+            ssh -o StrictHostKeyChecking=no -i /home/ec2-user/innovatech-key.pem ec2-user@10.0.2.232 "aws ecr get-login-password --region us-east-1 | sudo docker login --username AWS --password-stdin 035167451253.dkr.ecr.us-east-1.amazonaws.com && cd /home/ec2-user && sudo docker-compose pull && sudo docker-compose up -d"
