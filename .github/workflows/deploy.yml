@@ -33,7 +33,8 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         run: |
-          docker build -t $ECR_REGISTRY/innovatech-frontend:latest -t $ECR_REGISTRY/innovatech-frontend:${{ github.sha }} frontend/
+          docker build -t $ECR_REGISTRY/innovatech-frontend:latest \
+            -t $ECR_REGISTRY/innovatech-frontend:${{ github.sha }} frontend/
           docker push $ECR_REGISTRY/innovatech-frontend:latest
           docker push $ECR_REGISTRY/innovatech-frontend:${{ github.sha }}
 
@@ -41,7 +42,8 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         run: |
-          docker build -t $ECR_REGISTRY/innovatech-backend-ventas:latest -t $ECR_REGISTRY/innovatech-backend-ventas:${{ github.sha }} backend-ventas/
+          docker build -t $ECR_REGISTRY/innovatech-backend-ventas:latest \
+            -t $ECR_REGISTRY/innovatech-backend-ventas:${{ github.sha }} backend-ventas/
           docker push $ECR_REGISTRY/innovatech-backend-ventas:latest
           docker push $ECR_REGISTRY/innovatech-backend-ventas:${{ github.sha }}
 
@@ -49,40 +51,51 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         run: |
-          docker build -t $ECR_REGISTRY/innovatech-backend-despachos:latest -t $ECR_REGISTRY/innovatech-backend-despachos:${{ github.sha }} backend-despachos/
+          docker build -t $ECR_REGISTRY/innovatech-backend-despachos:latest \
+            -t $ECR_REGISTRY/innovatech-backend-despachos:${{ github.sha }} backend-despachos/
           docker push $ECR_REGISTRY/innovatech-backend-despachos:latest
           docker push $ECR_REGISTRY/innovatech-backend-despachos:${{ github.sha }}
 
-  deploy-frontend:
-    name: Deploy Frontend en EC2
+  deploy-ecs:
+    name: Deploy en ECS Fargate
     needs: build-and-push
     runs-on: ubuntu-latest
 
     steps:
-      - name: Deploy en EC2 Frontend
-        uses: appleboy/ssh-action@v1
+      - name: Configurar credenciales AWS
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          host: ${{ secrets.FRONTEND_HOST }}
-          username: ec2-user
-          key: ${{ secrets.EC2_SSH_KEY }}
-          script: |
-            aws ecr get-login-password --region us-east-1 | sudo docker login --username AWS --password-stdin 035167451253.dkr.ecr.us-east-1.amazonaws.com
-            sudo docker pull 035167451253.dkr.ecr.us-east-1.amazonaws.com/innovatech-frontend:latest
-            sudo docker stop innovatech-frontend || true
-            sudo docker rm innovatech-frontend || true
-            sudo docker run -d --name innovatech-frontend -p 80:80 -e BACKEND_HOST=10.0.2.232 035167451253.dkr.ecr.us-east-1.amazonaws.com/innovatech-frontend:latest
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
 
-  deploy-backend:
-    name: Deploy Backend en EC2
-    needs: build-and-push
-    runs-on: ubuntu-latest
+      - name: Deploy Frontend en ECS
+        run: |
+          aws ecs update-service \
+            --cluster innovatech-clustere \
+            --service frontend-service \
+            --force-new-deployment \
+            --region us-east-1
 
-    steps:
-      - name: Deploy en EC2 Backend via Bastion
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.FRONTEND_HOST }}
-          username: ec2-user
-          key: ${{ secrets.EC2_SSH_KEY }}
-          script: |
-            ssh -o StrictHostKeyChecking=no -i /home/ec2-user/innovatech-key.pem ec2-user@10.0.2.232 "aws ecr get-login-password --region us-east-1 | sudo docker login --username AWS --password-stdin 035167451253.dkr.ecr.us-east-1.amazonaws.com && cd /home/ec2-user && sudo docker-compose pull && sudo docker-compose up -d"
+      - name: Deploy Backend Despachos en ECS
+        run: |
+          aws ecs update-service \
+            --cluster innovatech-clustere \
+            --service backend-despachos-service \
+            --force-new-deployment \
+            --region us-east-1
+
+      - name: Deploy Backend Ventas en ECS
+        run: |
+          aws ecs update-service \
+            --cluster innovatech-clustere \
+            --service backend-ventas-service \
+            --force-new-deployment \
+            --region us-east-1
+
+      - name: Verificar deploy exitoso
+        run: |
+          echo "✅ Deploy ECS completado en cluster innovatech-clustere"
+          echo "Commit: ${{ github.sha }}"
+          echo "Hora: $(date)"
