@@ -1,0 +1,125 @@
+name: CI/CD Pipeline - Innovatech Chile
+
+on:
+  push:
+    branches:
+      - deploy
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  build-and-push:
+    name: Build & Push to ECR
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout codigo
+        uses: actions/checkout@v4
+
+      - name: Configurar credenciales AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login en Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build y push Frontend
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          docker build -t $ECR_REGISTRY/innovatech-frontend:latest -t $ECR_REGISTRY/innovatech-frontend:${{ github.sha }} frontend/
+          docker push $ECR_REGISTRY/innovatech-frontend:latest
+          docker push $ECR_REGISTRY/innovatech-frontend:${{ github.sha }}
+
+      - name: Build y push Backend Ventas
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          docker build -t $ECR_REGISTRY/innovatech-backend-ventas:latest -t $ECR_REGISTRY/innovatech-backend-ventas:${{ github.sha }} backend-ventas/
+          docker push $ECR_REGISTRY/innovatech-backend-ventas:latest
+          docker push $ECR_REGISTRY/innovatech-backend-ventas:${{ github.sha }}
+
+      - name: Build y push Backend Despachos
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          docker build -t $ECR_REGISTRY/innovatech-backend-despachos:latest -t $ECR_REGISTRY/innovatech-backend-despachos:${{ github.sha }} backend-despachos/
+          docker push $ECR_REGISTRY/innovatech-backend-despachos:latest
+          docker push $ECR_REGISTRY/innovatech-backend-despachos:${{ github.sha }}
+
+  deploy-backend:
+    name: Deploy Backend en EC2
+    needs: build-and-push
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout codigo
+        uses: actions/checkout@v4
+
+      - name: Configurar credenciales AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login en Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Deploy en EC2 Backend
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.FRONTEND_HOST }}
+          username: ec2-user
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            ssh -o StrictHostKeyChecking=no ec2-user@${{ secrets.BACKEND_HOST }} << 'ENDSSH'
+            aws ecr get-login-password --region us-east-1 | sudo docker login --username AWS --password-stdin ${{ env.ECR_REGISTRY }}
+            cd /home/ec2-user
+            export ECR_REGISTRY=${{ env.ECR_REGISTRY }}
+            sudo -E docker-compose pull
+            sudo -E docker-compose up -d
+            ENDSSH
+
+  deploy-frontend:
+    name: Deploy Frontend en EC2
+    needs: build-and-push
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Configurar credenciales AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login en Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Deploy en EC2 Frontend
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.FRONTEND_HOST }}
+          username: ec2-user
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            aws ecr get-login-password --region us-east-1 | sudo docker login --username AWS --password-stdin ${{ env.ECR_REGISTRY }}
+            sudo docker pull ${{ env.ECR_REGISTRY }}/innovatech-frontend:latest
+            sudo docker stop innovatech-frontend || true
+            sudo docker rm innovatech-frontend || true
+            sudo docker run -d --name innovatech-frontend -p 80:80 -e BACKEND_HOST=${{ secrets.BACKEND_HOST }} ${{ env.ECR_REGISTRY }}/innovatech-frontend:latest

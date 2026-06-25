@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: innovatech-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: innovatech2025
+      MYSQL_DATABASE: innovatech_db
+      MYSQL_USER: innovatech_user
+      MYSQL_PASSWORD: innovatech_pass
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - backend-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend-ventas:
+    image: ${ECR_REGISTRY}/innovatech-backend-ventas:latest
+    container_name: innovatech-backend-ventas
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      DB_ENDPOINT: mysql
+      DB_PORT: 3306
+      DB_NAME: innovatech_db
+      DB_USERNAME: innovatech_user
+      DB_PASSWORD: innovatech_pass
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - backend-network
+
+  backend-despachos:
+    image: ${ECR_REGISTRY}/innovatech-backend-despachos:latest
+    container_name: innovatech-backend-despachos
+    restart: always
+    ports:
+      - "8081:8081"
+    environment:
+      DB_ENDPOINT: mysql
+      DB_PORT: 3306
+      DB_NAME: innovatech_db
+      DB_USERNAME: innovatech_user
+      DB_PASSWORD: innovatech_pass
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - backend-network
+
+volumes:
+  mysql_data:
+    driver: local
+
+networks:
+  backend-network:
+    driver: bridge
