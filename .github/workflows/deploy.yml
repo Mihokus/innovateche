@@ -33,8 +33,7 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         run: |
-          docker build -t $ECR_REGISTRY/innovatech-frontend:latest \
-            -t $ECR_REGISTRY/innovatech-frontend:${{ github.sha }} frontend/
+          docker build -t $ECR_REGISTRY/innovatech-frontend:latest -t $ECR_REGISTRY/innovatech-frontend:${{ github.sha }} frontend/
           docker push $ECR_REGISTRY/innovatech-frontend:latest
           docker push $ECR_REGISTRY/innovatech-frontend:${{ github.sha }}
 
@@ -42,8 +41,7 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         run: |
-          docker build -t $ECR_REGISTRY/innovatech-backend-ventas:latest \
-            -t $ECR_REGISTRY/innovatech-backend-ventas:${{ github.sha }} backend-ventas/
+          docker build -t $ECR_REGISTRY/innovatech-backend-ventas:latest -t $ECR_REGISTRY/innovatech-backend-ventas:${{ github.sha }} backend-ventas/
           docker push $ECR_REGISTRY/innovatech-backend-ventas:latest
           docker push $ECR_REGISTRY/innovatech-backend-ventas:${{ github.sha }}
 
@@ -51,8 +49,7 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         run: |
-          docker build -t $ECR_REGISTRY/innovatech-backend-despachos:latest \
-            -t $ECR_REGISTRY/innovatech-backend-despachos:${{ github.sha }} backend-despachos/
+          docker build -t $ECR_REGISTRY/innovatech-backend-despachos:latest -t $ECR_REGISTRY/innovatech-backend-despachos:${{ github.sha }} backend-despachos/
           docker push $ECR_REGISTRY/innovatech-backend-despachos:latest
           docker push $ECR_REGISTRY/innovatech-backend-despachos:${{ github.sha }}
 
@@ -73,7 +70,7 @@ jobs:
       - name: Deploy Frontend en ECS
         run: |
           aws ecs update-service \
-            --cluster innovatech-clustere \
+            --cluster innovatech-clusteree \
             --service frontend-service \
             --force-new-deployment \
             --region us-east-1
@@ -81,7 +78,7 @@ jobs:
       - name: Deploy Backend Despachos en ECS
         run: |
           aws ecs update-service \
-            --cluster innovatech-clustere \
+            --cluster innovatech-clusteree \
             --service backend-despachos-service \
             --force-new-deployment \
             --region us-east-1
@@ -89,13 +86,13 @@ jobs:
       - name: Deploy Backend Ventas en ECS
         run: |
           aws ecs update-service \
-            --cluster innovatech-clustere \
+            --cluster innovatech-clusteree \
             --service backend-ventas-service \
             --force-new-deployment \
             --region us-east-1
 
       - name: Verificar deploy exitoso
         run: |
-          echo "✅ Deploy ECS completado en cluster innovatech-clustere"
+          echo "Deploy ECS completado en cluster innovatech-clusteree"
           echo "Commit: ${{ github.sha }}"
           echo "Hora: $(date)"
